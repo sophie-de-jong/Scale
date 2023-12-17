@@ -1,4 +1,5 @@
 #![allow(unused_imports)]
+#![allow(unused_macros)]
 
 #[macro_use]
 mod types;
@@ -10,16 +11,25 @@ use types::*;
 
 fn main() {
     let expr = prod!(
-        frac!(-1, 2),
-        int!(10),
-        int!(-1),
-        pow!(var!("x"), int!(3))
+        prod!(
+            var!("a"),
+            var!("c"),
+            var!("e"),
+        ),
+        prod!(
+            var!("a"),
+            inv!(var!("c")),
+            var!("d"),
+            var!("f")
+        )
     );
+
+    println!("Before simplification: {}", expr);
 
     let simp = expr.simplify().unwrap_or_else(|| {
         println!("Undefined expression");
         std::process::exit(1);
     });
     
-    println!("{}", simp);
+    println!("After simplification: {}", simp);
 }

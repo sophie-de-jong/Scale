@@ -1,3 +1,5 @@
+pub use std::rc::Rc;
+
 // The following macros are purposefully defined here before
 // any types are imported because macros can only be used after
 // they have been defined.
@@ -23,21 +25,27 @@ macro_rules! pow {
     };
 }
 
+macro_rules! inv {
+    ( $x:expr ) => {
+        Expression::Power(Power(Box::new($x), Box::new(Expression::Integer(Integer(-1)))))
+    };
+}
+
 macro_rules! sum {
     ($($x:expr),+ $(,)?) => {
-        Expression::Sum(Sum(vec![$($x),+]))
+        Expression::Sum(Sum(Rc::new([$($x),+])))
     };
 }
 
 macro_rules! prod {
     ($($x:expr),+ $(,)?) => {
-        Expression::Product(Product(vec![$($x),+]))
+        Expression::Product(Product(Rc::new([$($x),+])))
     };
 }
 
 macro_rules! var {
     ( $x:expr ) => {
-        Expression::Variable(Variable($x.to_string()))
+        Expression::Variable(Variable(Rc::from($x)))
     };
 }
 

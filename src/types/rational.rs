@@ -33,11 +33,11 @@ impl cmp::PartialOrd for Rational {
 
 impl Rational {
     pub fn gcd(&self) -> i64 {
-        let (mut a, mut b) = self.as_ratio();
+        let (mut a, mut b) = self.as_tuple();
         while b != 0 {
             (a, b) = (b, a % b);
         }
-        a
+        a.abs()
     }
 
     pub fn num(&self) -> i64 {
@@ -48,7 +48,7 @@ impl Rational {
         self.1
     }
 
-    pub fn as_ratio(&self) -> (i64, i64) {
+    pub fn as_tuple(&self) -> (i64, i64) {
         (self.0, self.1)
     }
 }

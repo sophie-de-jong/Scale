@@ -1,10 +1,11 @@
 use std::fmt;
 use std::cmp::Ordering;
+use std::rc::Rc;
 
 use crate::traits::Simplify;
 use crate::types::{self, Integer};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
 pub enum Expression {
     Integer(types::Integer),
     Rational(types::Rational),
@@ -33,10 +34,10 @@ impl Expression {
         }
     }
 
-    pub fn exponent(&self) -> &Expression {
+    pub fn into_base_exp_tuple(self) -> (Expression, Expression) {
         match self {
-            Expression::Power(p) => p.exponent(),
-            _ => &int!(1)
+            Expression::Power(p) => p.into_tuple(),
+            e => (e, int!(1))
         }
     }
 }

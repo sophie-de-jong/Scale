@@ -1,10 +1,11 @@
 use std::cmp;
+use std::rc::Rc;
 
 use crate::expression::Expression;
 use crate::traits::Simplify;
 use crate::types::{self, Integer, Rational, Product};
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Power(pub Box<Expression>, pub Box<Expression>);
 
 impl Simplify for Power {
@@ -25,13 +26,14 @@ impl Simplify for Power {
 impl cmp::Ord for Power {
     fn cmp(&self, other: &Self) -> cmp::Ordering {
         if self.base() != other.base() {
-            self.base().cmp(&other.base())
+            self.base().cmp(other.base())
         }
         else {
-            self.exponent().cmp(&other.exponent())
+            self.exponent().cmp(other.exponent())
         }
     }
 }
+
 
 impl cmp::PartialOrd for Power {
     fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
@@ -48,7 +50,7 @@ impl Power {
         self.1.as_ref()
     }
 
-    pub fn as_ratio(self) -> (Expression, Expression) {
+    pub fn into_tuple(self) -> (Expression, Expression) {
         (*self.0, *self.1)
     }
 
@@ -98,7 +100,7 @@ impl Power {
                 => Some(v),
 
             (Expression::Power(Power(r, s)), n) => {
-                let p = Product(vec![*s, n.into()]).simplify()?;
+                let p = prod!(*s, n.into()).simplify()?;
                 match p {
                     Expression::Integer(n) => Power::with_integer_exp(*r, n),
                     _ => Some(pow!(*r, p))
@@ -106,10 +108,10 @@ impl Power {
             },
 
             (Expression::Product(r), n)
-                => Product(
-                    r.0.into_iter()
-                    .map(|v| Power::with_integer_exp(v, n))
-                    .collect::<Option<Vec<_>>>()?
+                => Product(r.0
+                    .iter()
+                    .map(|v| Power::with_integer_exp(v.clone(), n))
+                    .collect::<Option<Rc<[_]>>>()?
                 ).simplify(),
             
             (v, n)
