@@ -34,10 +34,10 @@ impl Expression {
         }
     }
 
-    pub fn into_base_exp_tuple(self) -> (Expression, Expression) {
+    pub fn exponent(&self) -> &Expression {
         match self {
-            Expression::Power(p) => p.into_tuple(),
-            e => (e, int!(1))
+            Expression::Power(p) => p.exponent(),
+            _ => &int!(1)
         }
     }
 }

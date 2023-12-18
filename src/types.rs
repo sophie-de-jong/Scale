@@ -33,13 +33,19 @@ macro_rules! inv {
 
 macro_rules! sum {
     ($($x:expr),+ $(,)?) => {
-        Expression::Sum(Sum(Rc::new([$($x),+])))
+        Expression::Sum(Sum(vec![$($x),+]))
     };
 }
 
 macro_rules! prod {
     ($($x:expr),+ $(,)?) => {
-        Expression::Product(Product(Rc::new([$($x),+])))
+        Expression::Product(Product(vec![$($x),+]))
+    };
+}
+
+macro_rules! neg {
+    ($($x:expr),+ $(,)?) => {
+        Expression::Product(Product(vec![Expression::Integer(Integer(-1)), $x]))
     };
 }
 

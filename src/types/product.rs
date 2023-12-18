@@ -1,112 +1,100 @@
 use std::cmp;
-use std::rc::Rc;
-use std::slice;
 
 use crate::expression::Expression;
 use crate::traits::Simplify;
 use crate::types::{self, Power, Integer, Rational, Sum};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct Product(pub Rc<[Expression]>);
+pub struct Product(pub Vec<Expression>);
 
 impl Simplify for Product {
-    fn simplify(self) -> Option<Expression> {
-        let p = self.0
+    fn simplify(mut self) -> Option<Expression> {
+        self.0
             .iter()
             .map(|e| e.clone().simplify())
-            .collect::<Option<Rc<[_]>>>()?;
+            .collect::<Option<Vec<_>>>()?;
 
-        if p.contains(&int!(0)) {
+        if self.0.contains(&int!(0)) {
             return Some(int!(0))
         }
-
-        let result = match p.len() {
-            0 => int!(1),
-            1 => p[0].clone(), 
-            2 => Product(Product::with_two_args(p[0].clone(), p[1].clone())?).into(),
-            _ => {
-                let (u1, u2) = p.split_first()?;
-                Product(Product::with_more_args(u1.clone(), u2)?).into()
-            }
-        };
-
-        Some(result)
+        
+        match self.0.len() {
+            0 => Some(int!(1)),
+            1 => self.take_last(), 
+            2 => Product::with_two_args(self.take_last().unwrap(), self.take_last().unwrap()),
+            _ => Product::with_more_args(self.take_last().unwrap(), self)
+        }
     }
 }
 
 impl Product {
-    fn with_two_args(u1: Expression, u2: Expression) -> Option<Rc<[Expression]>> {
+    fn take_last(&mut self) -> Option<Expression> {
+        self.0.pop()
+    }
+
+    fn adjoin(mut self, value: Expression) -> Self {
+        self.0.push(value);
+        self
+    }
+
+    fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
         match (u1, u2) {
             (int!(1), q) | (q, int!(1))
-                => Some(Rc::from([q])),
+                => Some(q),
             
-            (Expression::Integer(n), Expression::Integer(m)) => {
-                match int!(n.0 * m.0) {
-                    int!(1) => Some(Rc::from([])),
-                    p => Some(Rc::from([p]))
-                }
-            }
+            (Expression::Integer(n), Expression::Integer(m))
+                => Some(int!(n.0 * m.0)),
+
+            (Expression::Rational(p), Expression::Rational(q))
+                => Some(frac!(p.0 * q.0, p.1 * q.1).simplify()?),
             
-            (Expression::Rational(p), Expression::Rational(q)) => {
-                match frac!(p.0 * q.0, p.1 * q.1).simplify()? {
-                    int!(1) => Some(Rc::from([])),
-                    p => Some(Rc::from([p]))
-                }
-            }
-            
-            (Expression::Integer(n), Expression::Rational(p)) | (Expression::Rational(p), Expression::Integer(n)) => {
-                match frac!(p.0 * n.0, p.1).simplify()? {
-                    int!(1) => Some(Rc::from([])),
-                    p => Some(Rc::from([p]))
-                }
-            }
-            
-            (u1, u2) if u1.base() == u2.base() => {
-                let (base1, exp1) = u1.into_base_exp_tuple();
-                let (_, exp2) = u2.into_base_exp_tuple();
-                Some(Rc::from([pow!(base1, sum!(exp1, exp2).simplify()?).simplify()?]))
-            }
+            (Expression::Integer(n), Expression::Rational(p)) | (Expression::Rational(p), Expression::Integer(n))
+                => Some(frac!(p.0 * n.0, p.1).simplify()?),
+
+            (u1, u2) if u1.base() == u2.base()
+                => Some(pow!(
+                    u1.base().clone(), 
+                    sum!(u1.exponent().clone(), u2.exponent().clone()).simplify()?
+                ).simplify()?),
 
             (Expression::Product(p), Expression::Product(q))
-                => Some(Product::merge_products(p.0.as_ref(), q.0.as_ref())?),
+                => Some(Product::merge_products(p, q)?.into()),
 
             (Expression::Product(p), q) | (q, Expression::Product(p), )
-                => Some(Product::merge_products(p.0.as_ref(), &[q])?),
+                => Some(Product::merge_products(p, Product(vec![q]))?.into()),
 
             (u1, u2) if u2 < u1
-                => Some(Rc::from([u2, u1])),
+                => Some(prod!(u2, u1)),
 
             (u1, u2) 
-                => Some(Rc::from([u1, u2]))
+                => Some(prod!(u1, u2))
         }
     }
 
-    fn with_more_args(u0: Expression, w: &[Expression]) -> Option<Rc<[Expression]>> {
+    fn with_more_args(u0: Expression, p: Product) -> Option<Expression> {
         match u0 {
-            Expression::Product(p) => Some(Product::merge_products(
-                p.0.as_ref(),
-                w
-            )?),
-            _ => Some(Product::merge_products(
-                &[u0],
-                w
-            )?),
+            Expression::Product(q) 
+                => Some(Product::merge_products(p, q)?.into()),
+
+            _ 
+                => Some(Product::merge_products(p, Product(vec![u0]))?.into()),
         }
     }
 
-    fn merge_products<'a>(p: &'a [Expression], q: &'a [Expression]) -> Option<Rc<[Expression]>> {
-        let Some((p1, rest_p)) = p.split_first() else { return Some(Rc::from(q)) };
-        let Some((q1, rest_q)) = q.split_first() else { return Some(Rc::from(p)) };
-        let h = Product::with_two_args(p1.clone(), q1.clone())?;
+    fn merge_products(mut p: Product, mut q: Product) -> Option<Product> {
+        let Some(p1) = p.take_last() else { return Some(q) };
+        let Some(q1) = q.take_last() else { return Some(p.adjoin(p1)) };
 
-        match h.as_ref() {
-            [] => Product::merge_products(p, q),
-            [_] => Some(Rc::from([h.as_ref(), Product::merge_products(rest_p, rest_q)?.as_ref()].concat().as_slice())),
-            [p0, q0] if p0 == p1 && q0 == q1 
-                => Some(Rc::from([slice::from_ref(p1), Product::merge_products(rest_p, q)?.as_ref()].concat().as_slice())),
-            [q0, p0] if p0 == p1 && q0 == q1 
-                => Some(Rc::from([slice::from_ref(q1), Product::merge_products(p, rest_q)?.as_ref()].concat().as_slice())),
-            [..] => panic!()
+        match Product::with_two_args(p1.clone(), q1.clone())? {
+            int!(1) => Product::merge_products(p, q),
+
+            Expression::Product(u) if u.0.as_slice() == [p1.clone(), q1.clone()] 
+                => Some(Product::merge_products(p, q.adjoin(p1))?.adjoin(q1)),
+
+            Expression::Product(u) if u.0.as_slice() == [q1.clone(), p1.clone()] 
+                => Some(Product::merge_products(p.adjoin(q1), q)?.adjoin(p1)),
+
+            u => Some(Product::merge_products(p, q)?.adjoin(u)),
         }
     }
 }

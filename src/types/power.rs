@@ -50,10 +50,6 @@ impl Power {
         self.1.as_ref()
     }
 
-    pub fn into_tuple(self) -> (Expression, Expression) {
-        (*self.0, *self.1)
-    }
-
     fn with_integer_base(n: Integer, w: Expression) -> Option<Expression> {
         match (n, w) {
             (Integer(0), Expression::Integer(m)) if m.is_pos()
@@ -111,7 +107,7 @@ impl Power {
                 => Product(r.0
                     .iter()
                     .map(|v| Power::with_integer_exp(v.clone(), n))
-                    .collect::<Option<Rc<[_]>>>()?
+                    .collect::<Option<Vec<_>>>()?
                 ).simplify(),
             
             (v, n)

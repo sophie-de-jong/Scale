@@ -6,14 +6,14 @@ use crate::traits::Simplify;
 use crate::types::{self, Integer};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct Sum(pub Rc<[Expression]>);
+pub struct Sum(pub Vec<Expression>);
 
 impl Simplify for Sum {
     fn simplify(self) -> Option<Expression> {
         let p = self.0
             .iter()
             .map(|e| e.clone().simplify())
-            .collect::<Option<Rc<[_]>>>()?;
+            .collect::<Option<Vec<_>>>()?;
 
         let mut sum = 0;
         for i in p.iter() {

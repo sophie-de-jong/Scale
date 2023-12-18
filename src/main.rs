@@ -10,19 +10,21 @@ use expression::Expression;
 use types::*;
 
 fn main() {
-    let expr = prod!(
-        prod!(
-            var!("a"),
-            var!("c"),
-            var!("e"),
-        ),
-        prod!(
-            var!("a"),
-            inv!(var!("c")),
-            var!("d"),
-            var!("f")
-        )
+    let e1 = prod!(
+        int!(2),
+        var!("a"),
+        var!("c"),
+        var!("e"),
     );
+
+    let e2 = prod!(
+        int!(3),
+        var!("b"),
+        var!("d"),
+        var!("e")
+    );
+
+    let expr = prod!(e1, e2);
 
     println!("Before simplification: {}", expr);
 
@@ -32,4 +34,8 @@ fn main() {
     });
     
     println!("After simplification: {}", simp);
+
+    // let mut v = vec![var!("a"), inv!(var!("c")), var!("d"), var!("f")];
+    // v.sort();
+    // println!("{:?}", v);
 }
