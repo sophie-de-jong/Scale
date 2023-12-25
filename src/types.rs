@@ -1,5 +1,3 @@
-pub use std::rc::Rc;
-
 // The following macros are purposefully defined here before
 // any types are imported because macros can only be used after
 // they have been defined.
@@ -8,7 +6,7 @@ pub use std::rc::Rc;
 // without needing to mess around with the Expression enum and all
 // it's variants. It's less error-prone to simply use a macro.
 macro_rules! int {
-    ( $x:expr ) => {
+    ($x:expr) => {
         Expression::Integer(Integer($x))
     };
 }
@@ -43,29 +41,55 @@ macro_rules! prod {
     };
 }
 
+macro_rules! div {
+    ($x:expr, $y:expr) => {
+        Expression::Product(Product(vec![$x, inv!($y)]))
+    }
+}
+
 macro_rules! neg {
-    ($($x:expr),+ $(,)?) => {
+    ($x:expr) => {
         Expression::Product(Product(vec![Expression::Integer(Integer(-1)), $x]))
     };
 }
 
 macro_rules! var {
     ( $x:expr ) => {
-        Expression::Variable(Variable(Rc::from($x)))
+        Expression::Variable(Variable($x))
+    };
+}
+
+macro_rules! sqrt {
+    ($x:expr) => {
+        Expression::Function(Function::Sqrt(Box::new($x)))
+    };
+}
+
+macro_rules! cbrt {
+    ($x:expr) => {
+        Expression::Function(Function::Cbrt(Box::new($x)))
+    };
+}
+
+macro_rules! log {
+    ($x:expr) => {
+        Expression::Function(Function::Log(Box::new($x)))
+    };
+}
+
+macro_rules! ln {
+    ($x:expr) => {
+        Expression::Function(Function::Ln(Box::new($x)))
     };
 }
 
 mod integer;
-#[macro_use]
 mod rational;
-#[macro_use]
 mod variable;
-#[macro_use]
 mod sum;
-#[macro_use]
 mod product;
-#[macro_use]
 mod power;
+mod function;
 
 pub use integer::Integer;
 pub use rational::Rational;
@@ -73,3 +97,4 @@ pub use variable::Variable;
 pub use sum::Sum;
 pub use product::Product;
 pub use power::Power;
+pub use function::Function;

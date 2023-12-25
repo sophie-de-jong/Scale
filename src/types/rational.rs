@@ -5,7 +5,7 @@ use crate::traits::Simplify;
 use crate::types::Integer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Rational(pub i64, pub i64);
+pub struct Rational(pub i32, pub i32);
 
 impl Simplify for Rational {
     fn simplify(self) -> Option<Expression> {
@@ -32,7 +32,7 @@ impl cmp::PartialOrd for Rational {
 }
 
 impl Rational {
-    pub fn gcd(&self) -> i64 {
+    pub fn gcd(&self) -> i32 {
         let (mut a, mut b) = self.as_tuple();
         while b != 0 {
             (a, b) = (b, a % b);
@@ -40,15 +40,15 @@ impl Rational {
         a.abs()
     }
 
-    pub fn num(&self) -> i64 {
+    pub fn num(&self) -> i32 {
         self.0
     }
 
-    pub fn den(&self) -> i64 {
+    pub fn den(&self) -> i32 {
         self.1
     }
 
-    pub fn as_tuple(&self) -> (i64, i64) {
+    pub fn as_tuple(&self) -> (i32, i32) {
         (self.0, self.1)
     }
 }

@@ -1,5 +1,3 @@
-use std::cmp;
-
 use crate::expression::Expression;
 use crate::traits::Simplify;
 use crate::types::{self, Power, Integer, Rational, Sum};
@@ -9,10 +7,12 @@ pub struct Product(pub Vec<Expression>);
 
 impl Simplify for Product {
     fn simplify(mut self) -> Option<Expression> {
-        self.0
-            .iter()
-            .map(|e| e.clone().simplify())
+        self.0 = self.0
+            .into_iter()
+            .map(Expression::simplify)
             .collect::<Option<Vec<_>>>()?;
+
+        self.0.sort();
 
         if self.0.contains(&int!(0)) {
             return Some(int!(0))
@@ -21,47 +21,68 @@ impl Simplify for Product {
         match self.0.len() {
             0 => Some(int!(1)),
             1 => self.take_last(), 
-            2 => Product::with_two_args(self.take_last().unwrap(), self.take_last().unwrap()),
-            _ => Product::with_more_args(self.take_last().unwrap(), self)
+            2 => Product::with_two_args(
+                self.take_last().unwrap(),
+                self.take_last().unwrap()
+            ),
+            _ => Product::with_more_args(
+                self.take_last().unwrap(),
+                self.simplify()?.into()
+            )
         }
     }
 }
 
 impl Product {
+    pub fn term(&self) -> &[Expression] {
+        match self.0.first().expect("called `Expression::term()` on an unsimplifed expression") {
+            Expression::Integer(_) | Expression::Rational(_) => self.0[1..].as_ref(),
+            _ => self.0.as_slice(),
+        }
+    }
+
+    pub fn coeff(&self) -> &Expression {
+        match self.0.first().expect("called `Expression::coeff()` on an unsimplifed expression") {
+            n @ Expression::Integer(_) => n,
+            q @ Expression::Rational(_) => q,
+            _ => &int!(1),
+        }
+    }
+
     fn take_last(&mut self) -> Option<Expression> {
         self.0.pop()
     }
 
-    fn adjoin(mut self, value: Expression) -> Self {
+    pub fn adjoin(mut self, value: Expression) -> Self {
         self.0.push(value);
         self
     }
 
-    fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
+    pub fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
         match (u1, u2) {
             (int!(1), q) | (q, int!(1))
                 => Some(q),
             
             (Expression::Integer(n), Expression::Integer(m))
-                => Some(int!(n.0 * m.0)),
+                => int!(n.num() * m.num()).simplify(),
 
             (Expression::Rational(p), Expression::Rational(q))
-                => Some(frac!(p.0 * q.0, p.1 * q.1).simplify()?),
+                => frac!(p.num() * q.num(), p.den() * q.den()).simplify(),
             
             (Expression::Integer(n), Expression::Rational(p)) | (Expression::Rational(p), Expression::Integer(n))
-                => Some(frac!(p.0 * n.0, p.1).simplify()?),
+                => frac!(p.num() * n.num(), p.den()).simplify(),
 
             (u1, u2) if u1.base() == u2.base()
-                => Some(pow!(
+                => pow!(
                     u1.base().clone(), 
                     sum!(u1.exponent().clone(), u2.exponent().clone()).simplify()?
-                ).simplify()?),
+                ).simplify(),
 
             (Expression::Product(p), Expression::Product(q))
-                => Some(Product::merge_products(p, q)?.into()),
+                => Product::merge_products(p, q).map(Expression::from),
 
-            (Expression::Product(p), q) | (q, Expression::Product(p), )
-                => Some(Product::merge_products(p, Product(vec![q]))?.into()),
+            (Expression::Product(p), u) | (u, Expression::Product(p))
+                => Product::merge_products(p, u.into()).map(Expression::from),
 
             (u1, u2) if u2 < u1
                 => Some(prod!(u2, u1)),
@@ -72,12 +93,12 @@ impl Product {
     }
 
     fn with_more_args(u0: Expression, p: Product) -> Option<Expression> {
-        match u0 {
-            Expression::Product(q) 
-                => Some(Product::merge_products(p, q)?.into()),
+        let mut result = Product::merge_products(p, u0.into())?;
 
-            _ 
-                => Some(Product::merge_products(p, Product(vec![u0]))?.into()),
+        match result.0.len() {
+            0 => Some(int!(1)),
+            1 => result.take_last(),
+            _ => Some(result.into())
         }
     }
 
@@ -88,13 +109,22 @@ impl Product {
         match Product::with_two_args(p1.clone(), q1.clone())? {
             int!(1) => Product::merge_products(p, q),
 
-            Expression::Product(u) if u.0.as_slice() == [p1.clone(), q1.clone()] 
-                => Some(Product::merge_products(p, q.adjoin(p1))?.adjoin(q1)),
+            Expression::Product(u) if (u.0.first()?, u.0.last()?) == (&p1, &q1) 
+                => Some(Product::merge_products(p.adjoin(p1), q)?.adjoin(q1)),
 
-            Expression::Product(u) if u.0.as_slice() == [q1.clone(), p1.clone()] 
-                => Some(Product::merge_products(p.adjoin(q1), q)?.adjoin(p1)),
+            Expression::Product(_)
+                => Some(Product::merge_products(p, q.adjoin(q1))?.adjoin(p1)),
 
             u => Some(Product::merge_products(p, q)?.adjoin(u)),
+        }
+    }
+}
+
+impl From<Expression> for Product {
+    fn from(value: Expression) -> Self {
+        match value {
+            Expression::Product(p) => p,
+            u => Product(vec![u]),
         }
     }
 }

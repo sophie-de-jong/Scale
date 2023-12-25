@@ -1,11 +1,12 @@
 use std::fmt;
-use std::cmp::Ordering;
+use std::cmp;
+use std::fmt::Debug;
 use std::rc::Rc;
 
 use crate::traits::Simplify;
-use crate::types::{self, Integer};
+use crate::types::{self, Integer, Product, Power, Sum};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
     Integer(types::Integer),
     Rational(types::Rational),
@@ -13,6 +14,7 @@ pub enum Expression {
     Sum(types::Sum),
     Product(types::Product),
     Power(types::Power),
+    Function(types::Function)
 }
 
 impl Expression {
@@ -24,6 +26,7 @@ impl Expression {
             Expression::Power(p)       => p.simplify(),
             Expression::Sum(s)           => s.simplify(),
             Expression::Variable(v) => v.simplify(),
+            Expression::Function(f) => f.simplify(),
         }
     }
 
@@ -40,6 +43,53 @@ impl Expression {
             _ => &int!(1)
         }
     }
+
+    pub fn term(&self) -> &[Expression] {
+        match self {
+            Expression::Product(p) => p.term(),
+            u => std::slice::from_ref(u),
+        }
+    }
+
+    pub fn coeff(&self) -> &Expression {
+        match self {
+            Expression::Product(p) => p.coeff(),
+            _ => &int!(1),
+        }
+    }
+}
+
+impl cmp::Ord for Expression {
+    fn cmp(&self, other: &Self) -> cmp::Ordering {
+        use Expression as E;
+        match (self, other) {
+            (E::Integer(n), E::Integer(m)) => n.cmp(m),
+            (E::Integer(_), _) => cmp::Ordering::Less,
+            (_, E::Integer(_)) => cmp::Ordering::Greater,
+            (E::Rational(r), E::Rational(s)) => r.cmp(s),
+            (E::Rational(_), _) => cmp::Ordering::Less,
+            (_, E::Rational(_)) => cmp::Ordering::Greater,
+            (E::Product(p), E::Product(q)) => p.cmp(q),
+            (E::Product(p), u) => p.cmp(&u.clone().into()),
+            (u, E::Product(p)) => Product::from(u.clone()).cmp(p),
+            (E::Power(p), E::Power(q)) => p.cmp(q),
+            (E::Power(p), u) => p.cmp(&u.clone().into()),
+            (u, E::Power(p)) => Power::from(u.clone()).cmp(p),
+            (E::Sum(s), E::Sum(t)) => s.cmp(t),
+            (E::Sum(s), u) => s.cmp(&u.clone().into()),
+            (u, E::Sum(s)) => Sum::from(u.clone()).cmp(s),
+            (E::Function(f), E::Function(g)) => f.cmp(g),
+            (E::Function(f), E::Variable(v)) => f.to_string().cmp(&v.0.to_string()),
+            (E::Variable(v), E::Function(f)) => v.0.to_string().cmp(&f.to_string()),
+            (E::Variable(v), E::Variable(w)) => v.cmp(w)
+        }
+    }
+} 
+
+impl cmp::PartialOrd for Expression {
+    fn partial_cmp(&self, other: &Self) -> Option<cmp::Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 impl fmt::Display for Expression {
@@ -47,8 +97,8 @@ impl fmt::Display for Expression {
         match self {
             Expression::Integer(i) => write!(f, "{}", i.0),
             Expression::Rational(r) => write!(f, "{}/{}", r.0, r.1),
+            Expression::Power(p) => write!(f, "({})^({})", p.0, p.1),
             Expression::Variable(v) => write!(f, "{}", v.0),
-            Expression::Power(p) => write!(f, "({}^{})", p.0, p.1),
             Expression::Sum(s) => write!(f, "({})", s.0.iter()
                 .map(|e| format!("{}", e))
                 .collect::<Vec<_>>()
@@ -57,7 +107,8 @@ impl fmt::Display for Expression {
             Expression::Product(p) => write!(f, "({})", p.0.iter()
                 .map(|e| format!("{}", e))
                 .collect::<Vec<_>>()
-                .join(" * "))
+                .join(" * ")),
+            Expression::Function(g) => write!(f, "{}", g)
         }
     }
 }
