@@ -3,7 +3,7 @@ use crate::traits::Simplify;
 use crate::types::{self, Integer, Rational, Product};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct Sum(pub Vec<Expression>);
+pub struct Sum(Vec<Expression>);
 
 impl Simplify for Sum {
     fn simplify(mut self) -> Option<Expression> {
@@ -30,6 +30,14 @@ impl Simplify for Sum {
 }
 
 impl Sum {
+    pub fn new(values: Vec<Expression>) -> Sum {
+        Sum(values)
+    }
+
+    pub fn values(&self) -> &[Expression] {
+        self.0.as_slice()
+    }
+
     fn take_last(&mut self) -> Option<Expression> {
         self.0.pop()
     }
@@ -41,7 +49,7 @@ impl Sum {
 
     fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
         match (u1, u2) {
-            (int!(0), q) | (q, int!(0))
+            (Expression::Integer(n), q) | (q, Expression::Integer(n)) if n.num() == 0
                 => Some(q),
             
             (Expression::Integer(n), Expression::Integer(m))
@@ -54,8 +62,13 @@ impl Sum {
                 => frac!(n.num()*p.den() + p.num(), p.den()).simplify(),
 
             (u1, u2) if u1.term() == u2.term() => {
-                let s = sum!(u1.coeff().clone(), u2.coeff().clone()).simplify()?;
-                Product(u1.term().to_vec()).adjoin(s).simplify()
+                let p = Product::from(u1);
+                let q = Product::from(u2);
+                let s = sum!(
+                    p.coeff().unwrap_or(&int!(1)).clone(),
+                    q.coeff().unwrap_or(&int!(1)).clone()
+                ).simplify()?;
+                Product::new(p.term().to_vec()).adjoin(s).simplify()
             }
 
             (Expression::Sum(p), Expression::Sum(q))
@@ -87,7 +100,7 @@ impl Sum {
         let Some(q1) = q.take_last() else { return Some(p.adjoin(p1)) };
 
         match Sum::with_two_args(p1.clone(), q1.clone())? {
-            int!(0) => Sum::merge_sums(p, q),
+            Expression::Integer(n) if n.num() == 0 => Sum::merge_sums(p, q),
 
             Expression::Sum(u) if (u.0.first()?, u.0.last()?) == (&p1, &q1) 
                 => Some(Sum::merge_sums(p.adjoin(p1), q)?.adjoin(q1)),

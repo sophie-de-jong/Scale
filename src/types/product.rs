@@ -1,9 +1,9 @@
 use crate::expression::Expression;
 use crate::traits::Simplify;
-use crate::types::{self, Power, Integer, Rational, Sum};
+use crate::types::{self, Power, Integer, Rational, Sum, sum};
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone)]
-pub struct Product(pub Vec<Expression>);
+pub struct Product(Vec<Expression>);
 
 impl Simplify for Product {
     fn simplify(mut self) -> Option<Expression> {
@@ -34,6 +34,14 @@ impl Simplify for Product {
 }
 
 impl Product {
+    pub fn new(values: Vec<Expression>) -> Product {
+        Product(values)
+    }
+
+    pub fn values(&self) -> &[Expression] {
+        self.0.as_slice()
+    }
+
     pub fn term(&self) -> &[Expression] {
         match self.0.first().expect("called `Expression::term()` on an unsimplifed expression") {
             Expression::Integer(_) | Expression::Rational(_) => self.0[1..].as_ref(),
@@ -41,11 +49,11 @@ impl Product {
         }
     }
 
-    pub fn coeff(&self) -> &Expression {
-        match self.0.first().expect("called `Expression::coeff()` on an unsimplifed expression") {
-            n @ Expression::Integer(_) => n,
-            q @ Expression::Rational(_) => q,
-            _ => &int!(1),
+    pub fn coeff(&self) -> Option<&Expression> {
+        match self.0.first()? {
+            n @ Expression::Integer(_) => Some(n),
+            q @ Expression::Rational(_) => Some(q),
+            _ => None,
         }
     }
 
@@ -60,7 +68,7 @@ impl Product {
 
     pub fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
         match (u1, u2) {
-            (int!(1), q) | (q, int!(1))
+            (Expression::Integer(n), q) | (q, Expression::Integer(n)) if n.num() == 1
                 => Some(q),
             
             (Expression::Integer(n), Expression::Integer(m))
@@ -72,11 +80,11 @@ impl Product {
             (Expression::Integer(n), Expression::Rational(p)) | (Expression::Rational(p), Expression::Integer(n))
                 => frac!(p.num() * n.num(), p.den()).simplify(),
 
-            (u1, u2) if u1.base() == u2.base()
-                => pow!(
-                    u1.base().clone(), 
-                    sum!(u1.exponent().clone(), u2.exponent().clone()).simplify()?
-                ).simplify(),
+            (u1, u2) if u1.base() == u2.base() => {
+                let p = Power::from(u1);
+                let q = Power::from(u2);
+                pow!(p.base().clone(), sum!(p.exp().clone(), q.exp().clone()).simplify()?).simplify()
+            }
 
             (Expression::Product(p), Expression::Product(q))
                 => Product::merge_products(p, q).map(Expression::from),
@@ -107,7 +115,7 @@ impl Product {
         let Some(q1) = q.take_last() else { return Some(p.adjoin(p1)) };
 
         match Product::with_two_args(p1.clone(), q1.clone())? {
-            int!(1) => Product::merge_products(p, q),
+            Expression::Integer(n) if n.num() == 1 => Product::merge_products(p, q),
 
             Expression::Product(u) if (u.0.first()?, u.0.last()?) == (&p1, &q1) 
                 => Some(Product::merge_products(p.adjoin(p1), q)?.adjoin(q1)),

@@ -10,7 +10,7 @@ use expression::Expression;
 use types::*;
 
 fn main() {
-    let expr = pow!(int!(-54), frac!(-2, 3));
+    let expr = prod!(log!(frac!(1, 10)), var!("x"));
 
     println!("Before simplification: {}", expr);
 

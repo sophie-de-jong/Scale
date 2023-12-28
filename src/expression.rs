@@ -37,24 +37,10 @@ impl Expression {
         }
     }
 
-    pub fn exponent(&self) -> &Expression {
-        match self {
-            Expression::Power(p) => p.exponent(),
-            _ => &int!(1)
-        }
-    }
-
     pub fn term(&self) -> &[Expression] {
         match self {
             Expression::Product(p) => p.term(),
             u => std::slice::from_ref(u),
-        }
-    }
-
-    pub fn coeff(&self) -> &Expression {
-        match self {
-            Expression::Product(p) => p.coeff(),
-            _ => &int!(1),
         }
     }
 }
@@ -79,8 +65,8 @@ impl cmp::Ord for Expression {
             (E::Sum(s), u) => s.cmp(&u.clone().into()),
             (u, E::Sum(s)) => Sum::from(u.clone()).cmp(s),
             (E::Function(f), E::Function(g)) => f.cmp(g),
-            (E::Function(f), E::Variable(v)) => f.to_string().cmp(&v.0.to_string()),
-            (E::Variable(v), E::Function(f)) => v.0.to_string().cmp(&f.to_string()),
+            (E::Function(f), E::Variable(v)) => f.to_string().cmp(&v.as_str().into()),
+            (E::Variable(v), E::Function(f)) => v.as_str().to_owned().cmp(&f.to_string()),
             (E::Variable(v), E::Variable(w)) => v.cmp(w)
         }
     }
@@ -95,16 +81,16 @@ impl cmp::PartialOrd for Expression {
 impl fmt::Display for Expression {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expression::Integer(i) => write!(f, "{}", i.0),
-            Expression::Rational(r) => write!(f, "{}/{}", r.0, r.1),
-            Expression::Power(p) => write!(f, "({})^({})", p.0, p.1),
-            Expression::Variable(v) => write!(f, "{}", v.0),
-            Expression::Sum(s) => write!(f, "({})", s.0.iter()
+            Expression::Integer(i) => write!(f, "{}", i.num()),
+            Expression::Rational(r) => write!(f, "{}/{}", r.num(), r.den()),
+            Expression::Power(p) => write!(f, "({})^({})", p.base(), p.exp()),
+            Expression::Variable(v) => write!(f, "{}", v.as_str()),
+            Expression::Sum(s) => write!(f, "({})", s.values().iter()
                 .map(|e| format!("{}", e))
                 .collect::<Vec<_>>()
                 .join(" + ")
             ),
-            Expression::Product(p) => write!(f, "({})", p.0.iter()
+            Expression::Product(p) => write!(f, "({})", p.values().iter()
                 .map(|e| format!("{}", e))
                 .collect::<Vec<_>>()
                 .join(" * ")),
