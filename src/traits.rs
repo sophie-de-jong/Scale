@@ -1,5 +1,5 @@
-use crate::expression::Expression;
+use crate::expression::{Expression, UndefinedError};
 
 pub trait Simplify {
-    fn simplify(self) -> Option<Expression>;
+    fn simplify(self) -> Result<Expression, UndefinedError>;
 }

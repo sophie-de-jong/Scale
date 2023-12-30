@@ -1,4 +1,4 @@
-use crate::expression::Expression;
+use crate::expression::{Expression, UndefinedError};
 use crate::traits::Simplify;
 use crate::types::{self, Integer, Rational, Product};
 
@@ -6,17 +6,17 @@ use crate::types::{self, Integer, Rational, Product};
 pub struct Sum(Vec<Expression>);
 
 impl Simplify for Sum {
-    fn simplify(mut self) -> Option<Expression> {
+    fn simplify(mut self) -> Result<Expression, UndefinedError> {
         self.0 = self.0
             .into_iter()
             .map(Expression::simplify)
-            .collect::<Option<Vec<_>>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         self.0.sort();
         
         match self.0.len() {
-            0 => Some(int!(1)),
-            1 => self.take_last(), 
+            0 => Ok(int!(1)),
+            1 => Ok(self.take_last().unwrap()), 
             2 => Sum::with_two_args(
                 self.take_last().unwrap(),
                 self.take_last().unwrap()
@@ -47,10 +47,10 @@ impl Sum {
         self
     }
 
-    fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
+    fn with_two_args(u1: Expression, u2: Expression) -> Result<Expression, UndefinedError> {
         match (u1, u2) {
             (Expression::Integer(n), q) | (q, Expression::Integer(n)) if n.num() == 0
-                => Some(q),
+                => Ok(q),
             
             (Expression::Integer(n), Expression::Integer(m))
                 => int!(n.num() + m.num()).simplify(),
@@ -78,37 +78,36 @@ impl Sum {
                 => Sum::merge_sums(p, u.into()).map(Expression::from),
 
             (u1, u2) if u2 < u1
-                => Some(sum!(u2, u1)),
+                => Ok(sum!(u2, u1)),
 
             (u1, u2) 
-                => Some(sum!(u1, u2))
+                => Ok(sum!(u1, u2))
         }
     }
 
-    fn with_more_args(u0: Expression, p: Sum) -> Option<Expression> {
+    fn with_more_args(u0: Expression, p: Sum) -> Result<Expression, UndefinedError> {
         let mut result = Sum::merge_sums(p, u0.into())?;
 
         match result.0.len() {
-            0 => Some(int!(0)),
-            1 => result.take_last(),
-            _ => Some(result.into())
+            0 => Ok(int!(0)),
+            1 => Ok(result.take_last().unwrap()),
+            _ => Ok(result.into())
         }
     }
 
-    fn merge_sums(mut p: Sum, mut q: Sum) -> Option<Sum> {
-        let Some(p1) = p.take_last() else { return Some(q) };
-        let Some(q1) = q.take_last() else { return Some(p.adjoin(p1)) };
-
+    fn merge_sums(mut p: Sum, mut q: Sum) -> Result<Sum, UndefinedError> {
+        let Some(p1) = p.take_last() else { return Ok(q) };
+        let Some(q1) = q.take_last() else { return Ok(p.adjoin(p1)) };
         match Sum::with_two_args(p1.clone(), q1.clone())? {
             Expression::Integer(n) if n.num() == 0 => Sum::merge_sums(p, q),
 
-            Expression::Sum(u) if (u.0.first()?, u.0.last()?) == (&p1, &q1) 
-                => Some(Sum::merge_sums(p.adjoin(p1), q)?.adjoin(q1)),
+            Expression::Sum(u) if (u.0.first().unwrap(), u.0.last().unwrap()) == (&p1, &q1) 
+                => Ok(Sum::merge_sums(p.adjoin(p1), q)?.adjoin(q1)),
 
             Expression::Sum(_)
-                => Some(Sum::merge_sums(p, q.adjoin(q1))?.adjoin(p1)),
+                => Ok(Sum::merge_sums(p, q.adjoin(q1))?.adjoin(p1)),
 
-            u => Some(Sum::merge_sums(p, q)?.adjoin(u)),
+            u => Ok(Sum::merge_sums(p, q)?.adjoin(u)),
         }
     }
 }

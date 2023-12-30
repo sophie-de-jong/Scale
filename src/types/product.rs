@@ -1,4 +1,4 @@
-use crate::expression::Expression;
+use crate::expression::{Expression, UndefinedError};
 use crate::traits::Simplify;
 use crate::types::{self, Power, Integer, Rational, Sum, sum};
 
@@ -6,21 +6,21 @@ use crate::types::{self, Power, Integer, Rational, Sum, sum};
 pub struct Product(Vec<Expression>);
 
 impl Simplify for Product {
-    fn simplify(mut self) -> Option<Expression> {
+    fn simplify(mut self) -> Result<Expression, UndefinedError> {
         self.0 = self.0
             .into_iter()
             .map(Expression::simplify)
-            .collect::<Option<Vec<_>>>()?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         self.0.sort();
 
         if self.0.contains(&int!(0)) {
-            return Some(int!(0))
+            return Ok(int!(0))
         }
         
         match self.0.len() {
-            0 => Some(int!(1)),
-            1 => self.take_last(), 
+            0 => Ok(int!(1)),
+            1 => Ok(self.take_last().unwrap()), 
             2 => Product::with_two_args(
                 self.take_last().unwrap(),
                 self.take_last().unwrap()
@@ -66,10 +66,10 @@ impl Product {
         self
     }
 
-    pub fn with_two_args(u1: Expression, u2: Expression) -> Option<Expression> {
+    pub fn with_two_args(u1: Expression, u2: Expression) -> Result<Expression, UndefinedError> {
         match (u1, u2) {
             (Expression::Integer(n), q) | (q, Expression::Integer(n)) if n.num() == 1
-                => Some(q),
+                => Ok(q),
             
             (Expression::Integer(n), Expression::Integer(m))
                 => int!(n.num() * m.num()).simplify(),
@@ -83,7 +83,7 @@ impl Product {
             (u1, u2) if u1.base() == u2.base() => {
                 let p = Power::from(u1);
                 let q = Power::from(u2);
-                pow!(p.base().clone(), sum!(p.exp().clone(), q.exp().clone()).simplify()?).simplify()
+                pow!(*p.base, sum!(*p.exp, *q.exp).simplify()?).simplify()
             }
 
             (Expression::Product(p), Expression::Product(q))
@@ -93,37 +93,36 @@ impl Product {
                 => Product::merge_products(p, u.into()).map(Expression::from),
 
             (u1, u2) if u2 < u1
-                => Some(prod!(u2, u1)),
+                => Ok(prod!(u2, u1)),
 
             (u1, u2) 
-                => Some(prod!(u1, u2))
+                => Ok(prod!(u1, u2))
         }
     }
 
-    fn with_more_args(u0: Expression, p: Product) -> Option<Expression> {
+    fn with_more_args(u0: Expression, p: Product) -> Result<Expression, UndefinedError> {
         let mut result = Product::merge_products(p, u0.into())?;
 
         match result.0.len() {
-            0 => Some(int!(1)),
-            1 => result.take_last(),
-            _ => Some(result.into())
+            0 => Ok(int!(1)),
+            1 => Ok(result.take_last().unwrap()),
+            _ => Ok(result.into())
         }
     }
 
-    fn merge_products(mut p: Product, mut q: Product) -> Option<Product> {
-        let Some(p1) = p.take_last() else { return Some(q) };
-        let Some(q1) = q.take_last() else { return Some(p.adjoin(p1)) };
+    fn merge_products(mut p: Product, mut q: Product) -> Result<Product, UndefinedError> {
+        let Some(p1) = p.take_last() else { return Ok(q) };
+        let Some(q1) = q.take_last() else { return Ok(p.adjoin(p1)) };
 
         match Product::with_two_args(p1.clone(), q1.clone())? {
             Expression::Integer(n) if n.num() == 1 => Product::merge_products(p, q),
-
-            Expression::Product(u) if (u.0.first()?, u.0.last()?) == (&p1, &q1) 
-                => Some(Product::merge_products(p.adjoin(p1), q)?.adjoin(q1)),
+            Expression::Product(u) if (u.0.first().unwrap(), u.0.last().unwrap()) == (&p1, &q1) 
+                => Ok(Product::merge_products(p.adjoin(p1), q)?.adjoin(q1)),
 
             Expression::Product(_)
-                => Some(Product::merge_products(p, q.adjoin(q1))?.adjoin(p1)),
+                => Ok(Product::merge_products(p, q.adjoin(q1))?.adjoin(p1)),
 
-            u => Some(Product::merge_products(p, q)?.adjoin(u)),
+            u => Ok(Product::merge_products(p, q)?.adjoin(u)),
         }
     }
 }

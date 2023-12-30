@@ -1,10 +1,20 @@
 use std::fmt;
 use std::cmp;
-use std::fmt::Debug;
-use std::rc::Rc;
+use std::error::Error;
 
 use crate::traits::Simplify;
 use crate::types::{self, Integer, Product, Power, Sum};
+
+#[derive(Debug)]
+pub struct UndefinedError(pub String);
+
+impl Error for UndefinedError {}
+
+impl fmt::Display for UndefinedError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Expression {
@@ -18,7 +28,7 @@ pub enum Expression {
 }
 
 impl Expression {
-    pub fn simplify(self) -> Option<Expression> {
+    pub fn simplify(self) -> Result<Expression, UndefinedError> {
         match self {
             Expression::Integer(i)   => i.simplify(),
             Expression::Rational(r) => r.simplify(),
@@ -32,7 +42,7 @@ impl Expression {
 
     pub fn base(&self) -> &Expression {
         match self {
-            Expression::Power(p) => p.base(),
+            Expression::Power(p) => p.base.as_ref(),
             e => e,
         }
     }
@@ -83,7 +93,7 @@ impl fmt::Display for Expression {
         match self {
             Expression::Integer(i) => write!(f, "{}", i.num()),
             Expression::Rational(r) => write!(f, "{}/{}", r.num(), r.den()),
-            Expression::Power(p) => write!(f, "({})^({})", p.base(), p.exp()),
+            Expression::Power(p) => write!(f, "({})^({})", p.base, p.exp),
             Expression::Variable(v) => write!(f, "{}", v.as_str()),
             Expression::Sum(s) => write!(f, "({})", s.values().iter()
                 .map(|e| format!("{}", e))

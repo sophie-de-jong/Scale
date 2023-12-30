@@ -5,19 +5,30 @@
 mod types;
 mod expression;
 mod traits;
+mod parser;
+mod lexer;
+mod tokens;
 
-use expression::Expression;
-use types::*;
+use lexer::Lexer;
+use parser::Parser;
 
-fn main() {
-    let expr = prod!(log!(frac!(1, 10)), var!("x"));
+use std::io::{self, Write};
+use std::error::Error;
 
-    println!("Before simplification: {}", expr);
+fn main() -> Result<(), Box<dyn Error>> {
+    loop {
+        let mut text = String::new();
+        print!("> ");
+        io::stdout().flush().unwrap();
+        io::stdin().read_line(&mut text).unwrap();
 
-    let simp = expr.simplify().unwrap_or_else(|| {
-        println!("Undefined expression");
-        std::process::exit(1);
-    });
+        let tokens = Lexer::new(text).tokens()?;
     
-    println!("After simplification: {}", simp);
+        let expression = Parser::new(tokens).parse()?;
+
+        match expression.simplify() {
+            Ok(u) => println!("{}", u),
+            Err(e) => println!("{}", e)
+        }
+    }
 }

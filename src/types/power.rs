@@ -1,19 +1,20 @@
+use core::fmt;
 use std::cmp;
 use std::ops::Deref;
 use std::rc::Rc;
 
-use crate::expression::Expression;
+use crate::expression::{Expression, UndefinedError};
 use crate::traits::Simplify;
 use crate::types::{self, Integer, Rational, Product};
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Power {
-    base: Box<Expression>,
-    exp: Box<Expression>
+    pub base: Box<Expression>,
+    pub exp: Box<Expression>
 }
 
 impl Simplify for Power {
-    fn simplify(self) -> Option<Expression> {
+    fn simplify(self) -> Result<Expression, UndefinedError> {
         match (self.base.simplify()?, self.exp.simplify()?) {
             (Expression::Integer(n), Expression::Rational(q))
                 => Power::with_radical(n, q),
@@ -25,13 +26,13 @@ impl Simplify for Power {
                 => Power::with_integer_exp(v, n),
             
             (Expression::Rational(r), w)
-                => Some(div!(
+                => Ok(div!(
                     pow!(int!(r.num()), w.clone()).simplify()?,
                     pow!(int!(r.den()), w).simplify()?
                 )),
                 
             (v, w) 
-                => Some(pow!(v, w)),
+                => Ok(pow!(v, w)),
         }
     }
 }
@@ -58,60 +59,52 @@ impl Power {
         Power { base: Box::new(base), exp: Box::new(exp) }
     }
 
-    pub fn base(&self) -> &Expression {
-        self.base.as_ref()
-    }
-
-    pub fn exp(&self) -> &Expression {
-        self.exp.as_ref()
-    }
-
-    fn with_integer_base(n: Integer, w: Expression) -> Option<Expression> {
+    fn with_integer_base(n: Integer, w: Expression) -> Result<Expression, UndefinedError> {
         match w {
             Expression::Integer(m) if m.num().is_positive() && n.num() == 0
-                => Some(int!(0)),
+                => Ok(int!(0)),
 
-            Expression::Rational(..) if n.num() == 0 => Some(int!(0)),
+            Expression::Rational(..) if n.num() == 0 => Ok(int!(0)),
 
-            _ if n.num() == 0 => None,
+            _ if n.num() == 0 => Err(UndefinedError("Indeterminate form: 0^0".to_string())),
 
-            _ if n.num().abs() == 1 => Some(n.into()),
+            _ if n.num().abs() == 1 => Ok(n.into()),
 
             Expression::Integer(m) if m.num().is_negative()
-                => Some(frac!(1, n.num().pow(m.num().unsigned_abs()))),
+                => Ok(frac!(1, n.num().pow(m.num().unsigned_abs()))),
 
             Expression::Integer(m)
-                => Some(int!(n.num().pow(m.num().unsigned_abs()))),
+                => Ok(int!(n.num().pow(m.num().unsigned_abs()))),
 
-            w => Some(pow!(n.into(), w))
+            w => Ok(pow!(n.into(), w))
         }
     }
 
-    fn with_integer_exp(v: Expression, n: Integer) -> Option<Expression> {
+    fn with_integer_exp(v: Expression, n: Integer) -> Result<Expression, UndefinedError> {
         match (v, n) {
             (Expression::Rational(q), n) if n.num().is_negative()
-                => Some(frac!(
+                => Ok(frac!(
                     q.den().pow(n.num() as u32), 
                     q.num().pow(n.num() as u32)
                 )),
 
             (Expression::Rational(q), n)
-                => Some(frac!(
+                => Ok(frac!(
                     q.num().pow(n.num() as u32),
                     q.den().pow(n.num() as u32) 
                 )),
 
             (_, n) if n.num() == 0
-                => Some(int!(1)),
+                => Ok(int!(1)),
 
             (v, n) if n.num() == 1
-                => Some(v),
+                => Ok(v),
 
             (Expression::Power(p), n) => {
                 let u = prod!(*p.exp, n.into()).simplify()?;
                 match u {
                     Expression::Integer(n) => Power::with_integer_exp(*p.base, n),
-                    _ => Some(pow!(*p.base, u))
+                    _ => Ok(pow!(*p.base, u))
                 }
             },
 
@@ -119,17 +112,17 @@ impl Power {
                 => Product::new(r.values()
                     .iter()
                     .map(|v| Power::with_integer_exp(v.clone(), n))
-                    .collect::<Option<Vec<_>>>()?
+                    .collect::<Result<Vec<_>, UndefinedError>>()?
                 ).simplify(),
             
             (v, n)
-                => Some(pow!(v, n.into()))
+                => Ok(pow!(v, n.into()))
         }
     }
 
-    fn with_radical(n: Integer, q: Rational) -> Option<Expression> {
+    fn with_radical(n: Integer, q: Rational) -> Result<Expression, UndefinedError> {
         if q.den() % 2 == 0 && n.num().is_negative() {
-            return None
+            return Err(UndefinedError("Negative value under even root".to_string()))
         }
 
         let mut outside_root = 1;

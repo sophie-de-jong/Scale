@@ -1,6 +1,6 @@
 use std::cmp;
 
-use crate::expression::Expression;
+use crate::expression::{Expression, UndefinedError};
 use crate::traits::Simplify;
 use crate::types::Integer;
 
@@ -8,13 +8,13 @@ use crate::types::Integer;
 pub struct Rational(i32, i32);
 
 impl Simplify for Rational {
-    fn simplify(self) -> Option<Expression> {
+    fn simplify(self) -> Result<Expression, UndefinedError> {
         let gcd = self.gcd();
         match (self.0, self.1) {
-            (_, 0)                         => None,
-            (n, d) if n % d == 0 => Some(int!(n / d)),
-            (n, d) if d < 0      => Some(frac!(-n / gcd, -d / gcd)),
-            (n, d)               => Some(frac!(n / gcd, d / gcd)),
+            (_, 0)                         => Err(UndefinedError("Indeterminate form: k/0".to_string())),
+            (n, d) if n % d == 0 => Ok(int!(n / d)),
+            (n, d) if d < 0      => Ok(frac!(-n / gcd, -d / gcd)),
+            (n, d)               => Ok(frac!(n / gcd, d / gcd)),
         }
     }
 }
@@ -52,5 +52,20 @@ impl Rational {
 
     pub fn den(&self) -> i32 {
         self.1
+    }
+}
+
+impl From<f32> for Rational {
+    fn from(value: f32) -> Self {
+        const EPSILON: f32 = 1e-10;
+        let mut den = 1.0;
+
+        while (value * den) % 1.0 > EPSILON {
+            den *= 10.0;
+        }
+
+        let num = (value * den).round() as i32;
+        let den = den as i32;
+        Rational::new(num, den)
     }
 }

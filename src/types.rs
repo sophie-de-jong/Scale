@@ -55,7 +55,7 @@ macro_rules! neg {
 
 macro_rules! var {
     ( $x:expr ) => {
-        Expression::Variable(Variable::new($x))
+        Expression::Variable(Variable::new(String::from($x)))
     };
 }
 
